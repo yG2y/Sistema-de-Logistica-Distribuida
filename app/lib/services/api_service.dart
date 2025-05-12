@@ -386,31 +386,65 @@ class ApiService {
     }
   }
 
-  Future<bool> aceitarPedido(int pedidoId, int motoristaId, double latitude, double longitude) async {
+  Future<bool> updateDeliveryStatus(
+      int pedidoId,
+      String newStatus,
+      {required String imagePath}
+      ) async {
     try {
-      final uri = Uri.parse('$apiGatewayUrl/api/pedidos/$pedidoId/aceitar?motoristaId=$motoristaId&latitude=$latitude&longitude=$longitude');
-      final response = await http.post(
-        uri,
-        headers: _authHeaders,
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$apiGatewayUrl/api/pedidos/$pedidoId/status'),
       );
 
-      return response.statusCode == 200;
+      _authHeaders.forEach((key, value) {
+        request.headers[key] = value;
+      });
+
+      request.fields['status'] = newStatus;
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'evidenceImage',
+          imagePath,
+        ),
+      );
+
+      var response = await request.send();
+
+      return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
-      print('Erro ao aceitar pedido: $e');
-      return false;
+      throw Exception('Erro na requisição: $e');
     }
   }
 
-  Future<bool> hasOngoingOrder(int motoristaId) async {
+  Future<bool> atualizarLocalizacaoMotorista(
+      int motoristaId,
+      double latitude,
+      double longitude,
+      String statusVeiculo,
+      {int? pedidoId}
+      ) async {
     try {
-      final pedidos = await getPedidosByMotorista(motoristaId);
-      return pedidos.any((pedido) =>
-      pedido.status == 'EM_ROTA' || pedido.status == 'AGUARDANDO_COLETA');
+      final response = await http.post(
+        Uri.parse('$apiGatewayUrl/api/rastreamento/localizacao'),
+        headers: _authHeaders,
+        body: jsonEncode({
+          'motoristaId': motoristaId,
+          'pedidoId': pedidoId,
+          'latitude': latitude,
+          'longitude': longitude,
+          'statusVeiculo': statusVeiculo
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as bool;
+      } else {
+        throw Exception('Falha ao atualizar localização: ${response.statusCode}');
+      }
     } catch (e) {
-      print('Erro ao verificar pedidos em andamento: $e');
-      return false;
+      throw Exception('Erro na requisição: $e');
     }
   }
-
-
 }

@@ -1,17 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/pedido.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../services/location_service.dart';
-import '../services/notification_manager.dart';
-import '../services/notification_service.dart';
-import 'dialog/new_order_details_dialog.dart';
-import 'notifications_screen.dart';
-import 'package:badges/badges.dart' as badges;
+import 'package:geolocator/geolocator.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final AuthService authService;
@@ -35,89 +27,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void initState() {
     super.initState();
     _loadEntregasAtivas();
-    _initializeLocationService();
-    _setupNotificationHandling();
   }
 
   void _loadEntregasAtivas() {
     final user = widget.authService.currentUser!;
     _entregasAtivas = widget.apiService.getPedidosByMotorista(user.id);
-  }
-
-  Future<void> _initializeLocationService() async {
-    final locationService = LocationService();
-    bool hasPermission = await locationService.init();
-    if (!hasPermission && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permissão de localização necessária para funcionamento completo do app'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _setupNotificationHandling() {
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
-
-    notificationService.setNotificationCallback((data) {
-      // Verificar diferentes estruturas possíveis
-      if (data['tipoEvento'] == 'PEDIDO_DISPONIVEL' ||
-          (data['dadosEvento'] != null && data['dadosEvento']['evento'] == 'PEDIDO_DISPONIVEL')) {
-
-        _showPedidoDisponivel(data);
-      }
-    });
-
-    // Ajustar também o método que processa notificações quando o app é aberto por uma notificação
-    FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails().then((details) {
-      if (details != null && details.didNotificationLaunchApp &&
-          details.notificationResponse?.payload != null) {
-        try {
-          final data = jsonDecode(details.notificationResponse!.payload!);
-          if (data['tipoEvento'] == 'PEDIDO_DISPONIVEL' ||
-              (data['dadosEvento'] != null && data['dadosEvento']['evento'] == 'PEDIDO_DISPONIVEL')) {
-            _showPedidoDisponivel(data);
-          }
-        } catch (e) {
-          print('Erro ao processar payload da notificação: $e');
-        }
-      }
-    });
-  }
-
-  void _showPedidoDisponivel(Map<String, dynamic> data) {
-    // Obter os dados do pedido da estrutura correta
-    final pedidoData = data['dadosEvento'] != null ?
-    data['dadosEvento']['dados'] :
-    data['dados'];
-
-    if (pedidoData == null) {
-      print('Dados do pedido não encontrados na notificação');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => NewOrderDetailsDialog(
-        pedidoData: pedidoData,
-        apiService: widget.apiService,
-        motoristaId: widget.authService.currentUser!.id,
-        onAccepted: () {
-          setState(() {
-            _loadEntregasAtivas();
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pedido aceito com sucesso!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
-      ),
-    );
   }
 
   void _onItemTapped(int index) {
@@ -136,6 +50,93 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _updateDeliveryWithCamera(int entregaId, String newStatus) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.camera);
+
+      if (image == null) {
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final success = await widget.apiService.updateDeliveryStatus(
+        entregaId,
+        newStatus,
+        imagePath: image.path,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (success && mounted) {
+        setState(() {
+          _loadEntregasAtivas();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status atualizado para $newStatus com foto'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.of(context).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao atualizar status: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showUpdateStatusDialog(int entregaId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Atualizar Status da Entrega'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.local_shipping, color: Colors.blue),
+                title: const Text('Em Rota (com foto)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateDeliveryWithCamera(entregaId, 'EM_ROTA');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Entregue (com foto)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateDeliveryWithCamera(entregaId, 'ENTREGUE');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.report_problem, color: Colors.orange),
+                title: const Text('Reportar Problema'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showReportProblemDialog(entregaId);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.authService.currentUser!;
@@ -147,31 +148,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Logística'),
+        title: const Text('Logística App - Motorista'),
         actions: [
-          Consumer<NotificationManager>(
-            builder: (context, notificationManager, child) {
-              return badges.Badge(
-                position: badges.BadgePosition.topEnd(top: 5, end: 5),
-                showBadge: notificationManager.unreadCount > 0,
-                badgeContent: Text(
-                  notificationManager.unreadCount.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsScreen(),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: _logout,
@@ -299,18 +277,50 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
+  String _currentStatus = 'DISPONIVEL';
+
   Widget _buildStatusButton() {
+    Color buttonColor;
+    IconData buttonIcon;
+
+    switch (_currentStatus) {
+      case 'DISPONIVEL':
+        buttonColor = Colors.green;
+        buttonIcon = Icons.check_circle;
+        break;
+      case 'EM_MOVIMENTO':
+        buttonColor = Colors.blue;
+        buttonIcon = Icons.directions_car;
+        break;
+      case 'PARADO':
+        buttonColor = Colors.orange;
+        buttonIcon = Icons.pause_circle_filled;
+        break;
+      default:
+        buttonColor = Colors.grey;
+        buttonIcon = Icons.help_outline;
+    }
+
     return ElevatedButton.icon(
       onPressed: () {
         _showStatusDialog();
       },
-      icon: const Icon(Icons.online_prediction),
-      label: const Text('Status: Disponível'),
+      icon: Icon(buttonIcon),
+      label: Text('Status: ${_formatStatus(_currentStatus)}'),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green,
+        backgroundColor: buttonColor,
         foregroundColor: Colors.white,
       ),
     );
+  }
+
+  String _formatStatus(String status) {
+    switch (status) {
+      case 'DISPONIVEL': return 'Disponível';
+      case 'EM_MOVIMENTO': return 'Em Movimento';
+      case 'PARADO': return 'Parado';
+      default: return status;
+    }
   }
 
   void _showStatusDialog() {
@@ -327,23 +337,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 title: const Text('Disponível'),
                 onTap: () {
                   Navigator.pop(context);
-                  // Implementar atualização de status
+                  _updateDriverStatus("DISPONIVEL");
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delivery_dining, color: Colors.blue),
-                title: const Text('Em Entrega'),
+                leading: const Icon(Icons.directions_car, color: Colors.blue),
+                title: const Text('Em Movimento'),
                 onTap: () {
                   Navigator.pop(context);
-                  // Implementar atualização de status
+                  _updateDriverStatus("EM_MOVIMENTO");
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.do_not_disturb_on, color: Colors.red),
-                title: const Text('Indisponível'),
+                leading: const Icon(Icons.pause_circle_filled, color: Colors.orange),
+                title: const Text('Parado'),
                 onTap: () {
                   Navigator.pop(context);
-                  // Implementar atualização de status
+                  _updateDriverStatus("PARADO");
                 },
               ),
             ],
@@ -351,6 +361,83 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         );
       },
     );
+  }
+
+  Future<Position> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Test if location services are enabled.
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permissions are denied.');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Location permissions are permanently denied.');
+    }
+
+    // Get the current position
+    return await Geolocator.getCurrentPosition();
+  }
+
+  Future<void> _updateDriverStatus(String statusVeiculo) async {
+    final user = widget.authService.currentUser!;
+
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // Get current location
+      final position = await _getCurrentLocation();
+
+      // Dismiss loading indicator
+      if (mounted) Navigator.pop(context);
+
+      final bool success = await widget.apiService.atualizarLocalizacaoMotorista(
+        user.id,
+        position.latitude,
+        position.longitude,
+        statusVeiculo,
+      );
+
+      if (success && mounted) {
+        setState(() {
+          _currentStatus = statusVeiculo;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status atualizado para ${_formatStatus(statusVeiculo)}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      // Dismiss loading indicator if showing
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao atualizar status: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildEntregaCard(Pedido entrega) {
@@ -429,46 +516,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  void _showUpdateStatusDialog(int entregaId) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Atualizar Status da Entrega'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.local_shipping, color: Colors.blue),
-                title: const Text('Em Rota'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implementar atualização de status
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.check_circle, color: Colors.green),
-                title: const Text('Entregue'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implementar atualização de status
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.report_problem, color: Colors.orange),
-                title: const Text('Reportar Problema'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showReportProblemDialog(entregaId);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   void _showReportProblemDialog(int entregaId) {
     final _problemaController = TextEditingController();
 
@@ -514,7 +561,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                // Implementar envio do relatório
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Problema reportado com sucesso'),
