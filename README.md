@@ -9,6 +9,8 @@ Cada microsserviço tem sua respectiva documentação
 - [Pedidos.md](./pedidos/README.md)
 - [Rastreamento.md](./rastreamento/README.md)
 - [Notificacao.md](./notificacao/README.md)
+- [Gateway.md](./api-gatway/README.md)
+
 
 **OBS:** o arquivo [TESTE.md](TESTES.md) se encontra orientações de como testar a integração entre os microserviços.
 Se atentar com o api-gatey. É recomendável antes de testar globalmente as integrações, ler cada doc dos microserviços.
