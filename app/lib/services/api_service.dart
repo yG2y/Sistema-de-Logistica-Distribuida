@@ -390,6 +390,34 @@ class ApiService {
     }
   }
 
+  Future<bool> aceitarPedido(int pedidoId, int motoristaId, double latitude, double longitude) async {
+    try {
+      final uri = Uri.parse('$apiGatewayUrl/api/pedidos/$pedidoId/aceitar?motoristaId=$motoristaId&latitude=$latitude&longitude=$longitude');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders,
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Erro ao aceitar pedido: $e');
+      return false;
+    }
+  }
+
+  Future<bool> hasOngoingOrder(int motoristaId) async {
+    try {
+      final pedidos = await getPedidosByMotorista(motoristaId);
+      return pedidos.any((pedido) =>
+      pedido.status == 'EM_ROTA' || pedido.status == 'AGUARDANDO_COLETA');
+    } catch (e) {
+      print('Erro ao verificar pedidos em andamento: $e');
+      return false;
+    }
+  }
+
+
+
   Future<bool> updateDeliveryStatus(
       int pedidoId,
       String newStatus,
