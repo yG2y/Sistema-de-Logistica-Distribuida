@@ -19,4 +19,4 @@ Se atentar com o api-gatey. É recomendável antes de testar globalmente as inte
 ## Link para o repositorio original publico no insghit
 https://github.com/icecilia007/lab-dev-distribuido/pulse
 
-## [Caminho para o video](./video/video%20final.mp4)
+## [Caminho para o video](./docs/video/README.md.txt)
