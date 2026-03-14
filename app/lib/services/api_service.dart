@@ -38,6 +38,26 @@ class ApiService {
     return headers;
   }
 
+  Future<Map<String, dynamic>?> validarCupom(String codigoCupom) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://ceqvslj8df.execute-api.us-east-1.amazonaws.com/prod/cupons/$codigoCupom'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorResponse = jsonDecode(response.body);
+        return errorResponse;
+      }
+    } catch (e) {
+      print('Erro ao validar cupom: $e');
+      return {'error': 'Erro de conexão'};
+    }
+  }
+
+
   Future<User> login(String email, String password) async {
     try {
       _authToken = null;
@@ -389,6 +409,34 @@ class ApiService {
       throw Exception('Erro na requisição: $e');
     }
   }
+
+  Future<bool> aceitarPedido(int pedidoId, int motoristaId, double latitude, double longitude) async {
+    try {
+      final uri = Uri.parse('$apiGatewayUrl/api/pedidos/$pedidoId/aceitar?motoristaId=$motoristaId&latitude=$latitude&longitude=$longitude');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders,
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Erro ao aceitar pedido: $e');
+      return false;
+    }
+  }
+
+  Future<bool> hasOngoingOrder(int motoristaId) async {
+    try {
+      final pedidos = await getPedidosByMotorista(motoristaId);
+      return pedidos.any((pedido) =>
+      pedido.status == 'EM_ROTA' || pedido.status == 'AGUARDANDO_COLETA');
+    } catch (e) {
+      print('Erro ao verificar pedidos em andamento: $e');
+      return false;
+    }
+  }
+
+
 
   Future<bool> updateDeliveryStatus(
       int pedidoId,
