@@ -12,6 +12,14 @@ Sistema distribuído de logística com microserviços em Java Spring Boot, API G
 > | ☁️ Cloud — Notificações e AWS SQS | [▶️ Assistir](https://youtu.be/Z_I-dodPACo) |
 > | 📱 Mobile — Interface Flutter | [▶️ Assistir](https://youtu.be/YwyG8zP1-TU) |
 
+## 📖 Documentação Interativa
+
+> Acesse a documentação completa gerada automaticamente com diagramas de arquitetura, mapeamento de dependências entre microsserviços e chat com o código:
+>
+> 👉 **[DeepWiki — Sistema de Logística Distribuída](https://deepwiki.com/yG2y/Sistema-de-Logistica-Distribuida)**
+>
+> A documentação cobre toda a arquitetura distribuída — API Gateway, microsserviços Java Spring Boot, app mobile Flutter, sistema de notificações Lambda e infraestrutura Docker.
+
 ## 🏗️ Arquitetura do Sistema
 
 ### Microserviços
