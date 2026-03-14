@@ -2,6 +2,16 @@
 
 Sistema distribuído de logística com microserviços em Java Spring Boot, API Gateway, notificações via Lambda e comunicação por mensageria RabbitMQ.
 
+> ## 🎬 Demonstrações em Vídeo
+> **Quer ver o sistema funcionando antes de rodar?**
+> Acesse [`videos/README.md`](./videos/README.md) para assistir às demonstrações completas de Microsserviços, Cloud e Mobile — com descrição técnica detalhada de cada fluxo.
+>
+> | Vídeo | Link |
+> |---|---|
+> | 🔧 Microsserviços — Fluxo End-to-End | [▶️ Assistir](https://youtu.be/iIB_3QDwI-4) |
+> | ☁️ Cloud — Notificações e AWS SQS | [▶️ Assistir](https://youtu.be/Z_I-dodPACo) |
+> | 📱 Mobile — Interface Flutter | [▶️ Assistir](https://youtu.be/YwyG8zP1-TU) |
+
 ## 🏗️ Arquitetura do Sistema
 
 ### Microserviços
